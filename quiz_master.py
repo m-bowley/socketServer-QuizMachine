@@ -6,8 +6,30 @@ import random
 import threading
 import pickle
 
+'''
+OP Codes
+
+0 - Information
+1 - Quiz Starting
+2 - Sending Question
+3 - Sending Answers
+4 - Request Answer
+5 - Sending Answer
+6 - Feedback
+7 - Quiz over
+EOT - End of transmission
+
+'''
+def wait_for_ack(socket):
+    receiving = True
+    while receiving:
+        incoming = socket.recv(1)
+        if incoming == chr(6).encode():
+            receiving = False
+
+END_CHAR = chr(8).encode()
+
 players = []
-player_addresses = []
 MAX_PLAYERS = 0
 while MAX_PLAYERS == 0:
     try:
@@ -16,15 +38,10 @@ while MAX_PLAYERS == 0:
     except:
         print('Try again please.')
 
-players = []
-player_addresses = []
-
 questions = []
 answered = 0
 
 current_q = None
-
-STATUS = "Set up"
 
 with open("questions.csv", 'r') as file:
     for line in file.readlines():
@@ -39,34 +56,61 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 class QuizGame(socketserver.BaseRequestHandler):
 
     def handle(self):
+        # Accept client state
+        global current_q, answered
         print(self.client_address)
         players.append(self.request)
-        self.request.sendall(b"Welcome to the quiz")
-        while STATUS != "Quiz Starting":
-            self.request.send(b"Waiting for players...")
-            sleep(5)
-        self.request.sendall(b"Quiz Starting")
-        sleep(0.5)
-        while STATUS != "Quiz End":
-            self.request.sendall(b"Next Question")
+        welcome = pickle.dumps((0, "Welcome to the quiz"))
+        welcome += END_CHAR
+        self.request.sendall(welcome)
+        wait_for_ack(self.request)
+        # Back to listening state
+        while len(players) < MAX_PLAYERS:
             sleep(0.5)
-            self.request.sendall(current_q.question.encode())
-            sleep(0.5)
-            self.request.sendall(b"Answers")
-            sleep(0.5)
-            answers = pickle.dumps(current_q.answers)
-            self.request.sendall(answers)
-            reply = self.request.recv(32)
-            answer = reply.decode()
-            if int(answer) == int(current_q.correct):
-                self.request.sendall(b"Correct")
-            else:
-                self.request.sendall(b"Incorrect")
-            global answered
-            answered += 1
-            while STATUS != "Next Question":
+        # Quiz starting
+        message = pickle.dumps((1, "None"))
+        message += END_CHAR
+        print(message)
+        self.request.sendall(message)
+        wait_for_ack(self.request)
+        # Quiz Loop
+        score = 0
+        while len(questions) > 0:
+            if current_q == None:
+                current_q = random.choice(questions)
+                answered = 0
+            # Send Question
+            message = pickle.dumps((2, current_q.question))
+            message += END_CHAR
+            self.request.sendall(message)
+            wait_for_ack(self.request)
+            # Send Answers
+            message = pickle.dumps((3, current_q.answers))
+            message += END_CHAR
+            self.request.sendall(message)
+            wait_for_ack(self.request)
+            # Request Answer
+            message = pickle.dumps((4, "None"))
+            message += END_CHAR
+            self.request.sendall(message)
+            wait_for_ack(self.request)
+            # Get Feedback
+            receiving = True
+            message = b''
+            while receiving:
+                incoming = self.request.recv(1)
+                if incoming == END_CHAR:
+                    receiving = False
+                else:
+                    message += incoming
+            data = pickle.loads(message)
+            if data[1]:
+                score += 1
+            while answered < len(players):
                 sleep(0.5)
-
+            if current_q in questions:
+                questions.remove(current_q)
+                current_q = None
 
 
 def server_tasks():
