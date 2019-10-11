@@ -86,7 +86,7 @@ def server_tasks():
         
 
 # Open the quiz server and bind it to a port - creating a socket
-quiz_server = ThreadedTCPServer(('0.0.0.0', 8083), QuizGame)
+quiz_server = ThreadedTCPServer(('0.0.0.0', 2065), QuizGame)
 x = threading.Thread(target=server_tasks)
 x.start()
 quiz_server.serve_forever()

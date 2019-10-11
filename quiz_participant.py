@@ -2,6 +2,10 @@ from time import sleep
 import socket
 import pickle
 
+###
+
+###
+
 quiz_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 quiz_server.connect(("0.0.0.0", 8083))
