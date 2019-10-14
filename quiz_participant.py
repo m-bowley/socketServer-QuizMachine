@@ -35,7 +35,6 @@ while status != "END":
         else:
             message += incoming
     quiz_server.send(chr(6).encode())
-    print(message)
     data = pickle.loads(message)
     if data[0] == 0:
         print(data[1])
